@@ -39,6 +39,10 @@ int main(int argc, char** argv)
     clients[i] = 0;
   }
 
+  /*
+  allow multiple connections on the server socket
+  not sure if this should be kept
+  */
   if(setsockopt(tcp_socket, SOL_SOCKET, SO_REUSEADDR, (char *)&opt, 
         sizeof(opt)) < 0 ) 
     { 
@@ -54,7 +58,6 @@ int main(int argc, char** argv)
   server.sin_port = htons( 0 );
   int len = sizeof( server );
 
-  /* attempt to bind (or associate) port 8123 with the socket */
   if ( bind( tcp_socket, (struct sockaddr *)&server, len ) == -1 )
   {
     perror( "bind() failed" );
@@ -78,19 +81,23 @@ int main(int argc, char** argv)
   {
     FD_ZERO(&rset);
     FD_SET(tcp_socket, &rset);
-    maxfd = findMaxFd;
 
+    
+    /* find maxfd here */
+    maxfd = ;
 
     ready = select(maxfd+1, &rset, NULL, NULL, NULL);
 
+    // if new client connection
     if (FD_ISSET(tcp_socket, &rset)){
-      client_sock = accept(master_socket, (struct sockaddr *)&address, (socklen_t*)&addrlen)
+      client_sock = accept(tcp_socket, (struct sockaddr *)&address, (socklen_t*)&addrlen)
       if (client_sock < 0) 
         { 
           perror("Unsuccessful accept system call"); 
           exit(EXIT_FAILURE); 
         }
       printf("successful client connected\n");
+
     }
 
 }
