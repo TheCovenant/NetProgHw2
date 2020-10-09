@@ -21,7 +21,6 @@ int main(int argc, char *argv[]) {
         if (newLineChar == '\n') // Increment count if this character is newline 
             wordCount =  wordCount + 1; 
     
-    printf("The file %s has %d lines\n ", fileName, wordCount); 
 
 
 
