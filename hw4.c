@@ -102,7 +102,7 @@ int main(int argc, char** argv)
   
   struct sockaddr_in client;
   int fromlen = sizeof( client );
-  int client_sock, maxfd;
+  int client_sock, maxfd, socket, read;
   int ready = 0;
 
 
@@ -150,7 +150,7 @@ int main(int argc, char** argv)
           k = send(client_sock, reAskForName, strlen(reAskForName), 0);
           continue;
         }
-        
+
         else{
           char playMessage[1024];
           sprintf(playMessage, "Let's start playing, %s\n", name);
@@ -169,6 +169,27 @@ int main(int argc, char** argv)
       }
     }
 }
+
+  /* loops through each active client socket to check for 
+     incoming messages/termination
+  */
+
+  for (int i =0; i<5; i++) {
+    socket = clients[i];
+
+    if (FD_ISSET(socket, &rset)){
+      read = read(socket, buffer, 1024);
+
+      if (read > 0){
+
+      }
+
+      else{
+
+      }
+
+    }
+  }
 
   close(tcp_socket);
 
