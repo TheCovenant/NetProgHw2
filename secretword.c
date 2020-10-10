@@ -53,6 +53,10 @@ int main(int argc, char *argv[]) {
     printf("First word is %s\n", wordsList[0]);
     printf("Last word is %s\n", wordsList[wordCount-1]);
 
+    unsigned int secretWordLocation = rand() % wordCount;
+
+    printf("secret word is %s\n", wordsList[secretWordLocation]);
+
 
 
     
