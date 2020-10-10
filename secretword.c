@@ -3,7 +3,13 @@
 #include <stdlib.h>
 #include <stdbool.h>
 int main(int argc, char *argv[]) {
-    char* fileName = argv[1];
+    int seedNumber;
+    int longestWordLength;
+    sscanf(argv[1], "%d", &seedNumber);
+    sscanf(argv[3], "%d", &longestWordLength);
+    srand(seedNumber);
+
+    char* fileName = argv[2];
     printf("filename is %s \n", fileName);
 
     FILE *file;
@@ -26,7 +32,7 @@ int main(int argc, char *argv[]) {
     printf("we have %d words\n", wordCount);
     char **wordsList = (char**)malloc(wordCount * sizeof(char*));
     for (int x = 0; x< wordCount; x++)
-        wordsList[x]= (char *)malloc( 1024 * sizeof(char));
+        wordsList[x]= (char *)malloc( longestWordLength * sizeof(char));
     char * line = NULL;
     size_t len = 0;
     int currentLine = 0;
@@ -34,8 +40,6 @@ int main(int argc, char *argv[]) {
 
     file = fopen(fileName, "r");
     while ((read = getline(&line, &len, file)) != -1) {
-        //printf("Retrieved line of length %zu:\n", read);
-        //printf("%s", line);
         strcpy(wordsList[currentLine], line);
         currentLine += 1;
         if (currentLine == wordCount)
@@ -48,6 +52,8 @@ int main(int argc, char *argv[]) {
         free(line);
     printf("First word is %s\n", wordsList[0]);
     printf("Last word is %s\n", wordsList[wordCount-1]);
+
+
 
     
 
