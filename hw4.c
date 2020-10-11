@@ -31,6 +31,10 @@
     nc 127.0.0.1 [port]
 */
 
+char* sort(char* word);
+void response(char* message, char* user, char* word, char* sortedWord, char* guess);
+char* lowercase(char* word);
+
 int findMaxFd(int tcp_socket, int * clients, int * clientsNoName){
   int maxfd = tcp_socket;
   for (int i =0; i< MAX_CLIENTS; i++){
@@ -263,7 +267,13 @@ int main(int argc, char** argv)
         // ** CJ's code goes here **
         // if received word guess from client
         else if (valread > 0){
-          printf("received message from socket %d\n", socket);
+	  // This is cause the newline character is read in as well...
+	  // I just replaced it with a end of string character
+	  buffer[valread-1] = '\0';
+	  char message[1024];
+	  // for now, secret word is "guess". sort("guess") is for simplicity
+	  response(message, client_names[i], "guess", sort("guess"), (char*)buffer);
+	  k = send(socket, message, strlen(message), 0);
         }   
       }
     }
@@ -278,4 +288,97 @@ int main(int argc, char** argv)
   free(client_names);
 
   return EXIT_SUCCESS;
+}
+
+
+
+// ~~~~~~~~~~~~~~~~~  Guess Handling ~~~~~~~~~~~~~~~~~
+
+/*
+  word: word to be sorted
+  Since words are assumed to be short, will be using an O(n^2) time sort
+*/
+char* sort(char* word) {
+  char* sorted = malloc (sizeof (char) * strlen(word));
+  strcpy(sorted, word);
+  for (int i = 0; i < strlen(word); i++) {
+    int min = i;
+    for (int j = i; j < strlen(word); j++) {
+      if (sorted[min] > sorted[j]) {
+	min = j;
+      }
+    }
+    char temp = sorted[i];
+    sorted[i] = sorted[min];
+    sorted[min] = temp;
+  }
+  return sorted;
+}
+
+
+// This returns a char* (and doens't directly make word lowercase) cause
+// in my testing functions i'm an idiot and forgot char* = "word" can't be modified
+// you can just replace with commented code if you have malloc'ed strings
+char* lowercase(char* word) {
+  char* lower = malloc (sizeof (char) * strlen(word));
+  for (int i = 0; i < strlen(word); i++) {
+    // word[i] = tolower(word[i]);
+    lower[i] = tolower(word[i]);
+  }
+  return lower;
+}
+
+
+/*
+  ARGUMENTS: 
+  word: word to be guessed
+  sortedWord: word to be guessed (sorted)
+  guess: client's guess
+  
+  ASSUMES:
+    1. words/guesses are lowercase (so that you don't call lowercase each function call)
+    2. <sortedWord> is <word> sorted. (This is so that you don't sort the word each function call
+ */
+// Things I want to add:
+//   Ensuring there aren't any non-letter characters
+//   Lowercase...? I mean i was planning for the main function to lowercase stuff
+//     so that you don't have to each time response is called
+//   You can also return the error message instead of returning void (and printing the error message)
+void response(char* message, char* user, char* word, char* sortedWord, char* guess) {
+  if (strlen(word) != strlen(guess)) {
+    sprintf(message, "Invalid guess length. The secret word is %d letter(s).\n", (int)strlen(word));
+    return;
+  }
+  char* sortedGuess = sort(guess);
+  int correctPositions = 0;
+
+  // correctPositions
+  for (int i = 0; i < strlen(word); i++) {
+    if (word[i] == guess[i]) {
+      correctPositions += 1;
+    }
+  }
+
+  // Check for correct guess
+  if (correctPositions == strlen(word)) {
+    sprintf(message, "%s has correctly guessed the word %s\n", user, word);
+    return;
+  }
+  
+  // correctLetters
+  int wordIndex = 0;
+  int guessIndex = 0;
+  int correctLetters = 0;
+  while ((wordIndex < strlen(sortedWord)) && (guessIndex < strlen(sortedGuess))) {
+    if (sortedWord[wordIndex] == sortedGuess[guessIndex]) {
+      correctLetters += 1;
+      wordIndex += 1;
+      guessIndex += 1;
+    } else if (sortedWord[wordIndex] < sortedGuess[guessIndex]) {
+      wordIndex += 1;
+    } else {
+      guessIndex += 1;
+    }
+  }
+  sprintf(message, "%s guessed %s: %d letter(s) were correct and %d letter(s) were correctly placed.\n", user, guess, correctLetters, correctPositions);
 }
