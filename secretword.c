@@ -5,17 +5,16 @@
 
 void getWordCount(char* fileName, int* wordCount){
     FILE *file;
-    char newLineChar;
-
-    file = fopen(fileName, "r");
+    char newLineChar;file = fopen(fileName, "r");
 
     if (file == NULL){
         printf("Could not open file %s\n", fileName);
         return;
     }
+    *wordCount = 0;
     for (newLineChar = getc(file); newLineChar != EOF; newLineChar = getc(file)) 
         if (newLineChar == '\n') // Increment count if this character is newline 
-            wordCount =  wordCount + 1; 
+            *wordCount =  *wordCount + 1; 
 
     fclose(file);
     free(file);
@@ -60,7 +59,7 @@ int main(int argc, char *argv[]) {
     char* fileName = argv[2];
     printf("filename is %s \n", fileName);
 
-    int wordCount = 0;
+    int wordCount;
     getWordCount(fileName, &wordCount);
 
     printf("we have %d words\n", wordCount);
