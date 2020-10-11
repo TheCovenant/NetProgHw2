@@ -18,7 +18,9 @@
 
 
 #define MAX_CLIENTS 5
-#define MAX_CLIENTS_NO_NAME 20
+#define MAX_NO_NAME 20
+
+
 /*
   In your terminal, 
   run the server by:
@@ -36,7 +38,7 @@ int findMaxFd(int tcp_socket, int * clients, int * clientsNoName){
       maxfd = clients[i];
     }
   }
-  for (int i =0; i< MAX_CLIENTS_NO_NAME; i++){
+  for (int i =0; i< MAX_NO_NAME; i++){
     if (maxfd < clientsNoName[i]){
       maxfd = clientsNoName[i];
     }
@@ -45,7 +47,7 @@ int findMaxFd(int tcp_socket, int * clients, int * clientsNoName){
 }
 
 
-int ClientNameExists(char * name, char * client_names[]){
+int clientNameExists(char * name, char * client_names[]){
   int exists = 0;
   for (int i =0; i< MAX_CLIENTS; i++){
     if (strcmp(name, client_names[i]) == 0){
@@ -79,9 +81,9 @@ int main(int argc, char** argv)
     clients[i] = 0;
   }
 
-  int clientsNoName[MAX_CLIENTS_NO_NAME];
+  int clientsNoName[MAX_NO_NAME];
 
-  for (int i =0; i< MAX_CLIENTS_NO_NAME; i++){
+  for (int i =0; i< MAX_NO_NAME; i++){
     clientsNoName[i] = 0;
   }
 
@@ -138,7 +140,7 @@ int main(int argc, char** argv)
         FD_SET(clients[i], &rset);
       }
     }
-    for (int i =0; i< MAX_CLIENTS_NO_NAME; i++){
+    for (int i =0; i< MAX_NO_NAME; i++){
       if (clientsNoName[i] != 0){
         FD_SET(clientsNoName[i], &rset);
       }
@@ -164,7 +166,7 @@ int main(int argc, char** argv)
       k = send(client_sock, askForName, strlen(askForName), 0);
 
       // adds the client to clientsNoName
-      for (int i = 0; i < MAX_CLIENTS_NO_NAME; i++){
+      for (int i = 0; i < MAX_NO_NAME; i++){
         if( clientsNoName[i] == 0 ){
           clientsNoName[i] = client_sock;
           break;
@@ -177,7 +179,7 @@ int main(int argc, char** argv)
      loops through each socket in clientsNoName
      and check if the client has entered the username.
   */
-  for (int i =0; i<MAX_CLIENTS_NO_NAME; i++) {
+  for (int i =0; i<MAX_NO_NAME; i++) {
 
     socket = clientsNoName[i];
     if (socket != 0){
@@ -193,7 +195,7 @@ int main(int argc, char** argv)
 
         /* 
           if client closes socket before entering username
-          simply remove it from list of client without names
+          simply remove it from clientsNoName
         */ 
         if (valread == 0){
           close( socket );
@@ -203,7 +205,7 @@ int main(int argc, char** argv)
         else{
 
           // check if client name already exists
-          if (ClientNameExists(name, client_names)){
+          if (clientNameExists(name, client_names)){
             char reAskForName[1024];
             sprintf(reAskForName, "Username %s is already taken, please enter a different username\n", name);
             k = send(socket, reAskForName, strlen(reAskForName), 0);
@@ -250,7 +252,7 @@ int main(int argc, char** argv)
         valread = read(socket, buffer, 1024);
 
         // if client terminates, free the client from the list
-        // and remove the name
+        // and remove the name as well
         if (valread == 0){
           close(socket);
           clients[i] = 0;
@@ -258,7 +260,8 @@ int main(int argc, char** argv)
           printf("client terminating...\n");
         }
 
-        // if received word guess from clients
+        // ** CJ's code goes here **
+        // if received word guess from client
         else if (valread > 0){
           printf("received message from socket %d\n", socket);
         }   
