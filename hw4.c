@@ -18,14 +18,13 @@
 
 
 #define MAX_CLIENTS 5
-#define MAX_NO_NAME 20
+#define MAX_NO_NAME 5
 
 
 /*
-  In your terminal, 
+  In your terminal,
   run the server by:
     ./your_program.out [seed] [port] [dictionary_file] [longest_word_length]
-
   to add a new client,
   open a new terminal tab and run:
     nc 127.0.0.1 [port]
@@ -34,6 +33,7 @@
 char* sort(char* word);
 void response(char* message, char* user, char* word, char* sortedWord, char* guess);
 char* lowercase(char* word);
+
 
 int findMaxFd(int tcp_socket, int * clients, int * clientsNoName){
   int maxfd = tcp_socket;
@@ -62,23 +62,34 @@ int clientNameExists(char * name, char * client_names[]){
 }
 
 
+void sendAll(int * clients,char * msg){
+  int i;
+  for(i=0;i< MAX_CLIENTS;i++){
+    if (clients[i] != 0){
+       send(clients[i], msg, strlen(msg), 0);
+    }
+  }
+}
+
+
 int main(int argc, char** argv)
 {
+  //instant write and read, no buffer
   setvbuf( stdout, NULL, _IONBF, 0 );
-  
-  
+
+  // judge the parameters
   if (argc != 5){
     fprintf(stderr,"ERROR: Invalid argument(s)\n");
     return EXIT_FAILURE;
   }
-  
 
+  // get the port number
   int port = atoi(argv[2]);
- 
+
   /* creates the listener socket as TCP socket (SOCK_STREAM) */
   int tcp_socket = socket( PF_INET, SOCK_STREAM, 0 );
 
-  
+
   // stores socket descriptors of current clients
   int clients[MAX_CLIENTS];
   for (int i =0; i< MAX_CLIENTS; i++){
@@ -86,7 +97,6 @@ int main(int argc, char** argv)
   }
 
   int clientsNoName[MAX_NO_NAME];
-
   for (int i =0; i< MAX_NO_NAME; i++){
     clientsNoName[i] = 0;
   }
@@ -108,6 +118,7 @@ int main(int argc, char** argv)
   server.sin_port = htons( port );
   int len = sizeof( server );
 
+  //bind and listen to the socket
   if ( bind( tcp_socket, (struct sockaddr *)&server, len ) == -1 ){
     perror( "bind() failed" );
     return EXIT_FAILURE;
@@ -119,7 +130,7 @@ int main(int argc, char** argv)
     perror( "listen() failed" );
     return EXIT_FAILURE;
   }
-  
+
   struct sockaddr_in client;
   int fromlen = sizeof( client );
   int client_sock, maxfd, socket;
@@ -128,17 +139,20 @@ int main(int argc, char** argv)
   int valread = 0;
   char name[1024];
   int k = 0;
+  int clientNum = 0; // current # of clients
 
- 
+
   while ( 1 ){
 
     FD_ZERO(&rset);
     FD_SET(tcp_socket, &rset);
 
 
-    // adds socket descriptors from
-    // both lists of clients and clientsNoname
-    // to rset
+    /* 
+       adds socket descriptors from
+       both lists of clients and clientsNoname
+       to rset
+     */
     for (int i =0; i< MAX_CLIENTS; i++){
       if (clients[i] != 0){
         FD_SET(clients[i], &rset);
@@ -150,18 +164,21 @@ int main(int argc, char** argv)
       }
     }
 
+
     maxfd = findMaxFd(tcp_socket, clients, clientsNoName);
     ready = select(maxfd+1, &rset, NULL, NULL, NULL);
 
-    /* if a new client comes in
+    /* 
+       if a new client comes in
        add it to the list of clients without username
     */
-    if (FD_ISSET(tcp_socket, &rset)){
+    if (FD_ISSET(tcp_socket, &rset) && clientNum < 5){
+      clientNum++;
 
       client_sock = accept(tcp_socket, (struct sockaddr *)&client, (socklen_t*)&fromlen);
 
-      if (client_sock < 0) { 
-        perror("Unsuccessful accept system call"); 
+      if (client_sock < 0) {
+        perror("Unsuccessful accept system call");
         exit(EXIT_FAILURE);
       }
 
@@ -179,7 +196,7 @@ int main(int argc, char** argv)
     }
 
 
-  /* 
+  /*
      loops through each socket in clientsNoName
      and check if the client has entered the username.
   */
@@ -189,7 +206,7 @@ int main(int argc, char** argv)
     if (socket != 0){
      if (FD_ISSET( socket , &rset)){
 
-        /* 
+        /*
          sets the socket to NON BLOCKING so it doesn't
          block on empty pipe
         */
@@ -197,13 +214,14 @@ int main(int argc, char** argv)
         valread = read(socket, name, 1024);
         name[valread-1]='\0';
 
-        /* 
+        /*
           if client closes socket before entering username
           simply remove it from clientsNoName
-        */ 
+        */
         if (valread == 0){
           close( socket );
           clientsNoName[i] = 0;
+          clientNum--;
         }
 
         else{
@@ -219,7 +237,7 @@ int main(int argc, char** argv)
             char playMessage[1024];
             sprintf(playMessage, "Let's start playing, %s\n", name);
             k = send(socket, playMessage, strlen(playMessage), 0);
-            clientsNoName[i] = 0; // remove client from clientsNoName 
+            clientsNoName[i] = 0; // remove client from clientsNoName
 
             // adds the client to the list of active clients
             // if there are less than 5 active clients
@@ -259,6 +277,7 @@ int main(int argc, char** argv)
         // and remove the name as well
         if (valread == 0){
           close(socket);
+          clientNum--;
           clients[i] = 0;
           strcpy(client_names[i], "");
           printf("client terminating...\n");
@@ -267,14 +286,15 @@ int main(int argc, char** argv)
         // ** CJ's code goes here **
         // if received word guess from client
         else if (valread > 0){
-	  // This is cause the newline character is read in as well...
-	  // I just replaced it with a end of string character
-	  buffer[valread-1] = '\0';
-	  char message[1024];
-	  // for now, secret word is "guess". sort("guess") is for simplicity
-	  response(message, client_names[i], "guess", sort("guess"), (char*)buffer);
-	  k = send(socket, message, strlen(message), 0);
-        }   
+    // This is cause the newline character is read in as well...
+    // I just replaced it with a end of string character
+    buffer[valread-1] = '\0';
+    char message[1024];
+    // for now, secret word is "guess". sort("guess") is for simplicity
+    response(message, client_names[i], "guess", sort("guess"), (char*)buffer);
+    sendAll(clients, message);
+    // k = send(socket, message, strlen(message), 0);
+        }
       }
     }
   }
@@ -305,7 +325,7 @@ char* sort(char* word) {
     int min = i;
     for (int j = i; j < strlen(word); j++) {
       if (sorted[min] > sorted[j]) {
-	min = j;
+  min = j;
       }
     }
     char temp = sorted[i];
@@ -330,11 +350,10 @@ char* lowercase(char* word) {
 
 
 /*
-  ARGUMENTS: 
+  ARGUMENTS:
   word: word to be guessed
   sortedWord: word to be guessed (sorted)
   guess: client's guess
-  
   ASSUMES:
     1. words/guesses are lowercase (so that you don't call lowercase each function call)
     2. <sortedWord> is <word> sorted. (This is so that you don't sort the word each function call
@@ -364,7 +383,7 @@ void response(char* message, char* user, char* word, char* sortedWord, char* gue
     sprintf(message, "%s has correctly guessed the word %s\n", user, word);
     return;
   }
-  
+
   // correctLetters
   int wordIndex = 0;
   int guessIndex = 0;
