@@ -48,6 +48,15 @@ char** getDictionaryWords(int longestWordLength, int wordCount, char* fileName) 
 
     return wordsList;
 }
+
+void freeWordsList(char ***wordsListPointer, int wordCount)
+{
+   char** wordsList = *wordsListPointer;
+   for (int x = 0; x < wordCount; x++)
+      free(wordsList[x]);
+   free (wordsList);
+   *wordsListPointer = NULL;
+}
  
 
 int main(int argc, char *argv[]) {
@@ -74,13 +83,8 @@ int main(int argc, char *argv[]) {
 
     printf("secret word is %s\n", wordsList[secretWordLocation]);
 
+    freeWordsList(&wordsList, wordCount);
+
     
     return 0;
-
-
-
-    
-
-
-
 }
