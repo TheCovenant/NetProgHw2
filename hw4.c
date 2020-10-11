@@ -224,10 +224,6 @@ int main(int argc, char** argv)
               break;
               }
             }
-            
-            else{
-              printf("There are 5 clients in the game currently. Please wait\n");
-            }
           }
         }
       }
@@ -263,7 +259,7 @@ int main(int argc, char** argv)
         }
 
         // if received word guess from clients
-        else{
+        else if (valread > 0){
           printf("received message from socket %d\n", socket);
         }   
       }
