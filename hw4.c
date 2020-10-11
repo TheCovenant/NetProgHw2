@@ -17,6 +17,8 @@
 #include <ctype.h>
 
 
+#define MAX_CLIENTS 5
+#define MAX_CLIENTS_NO_NAME 20
 /*
   In your terminal, 
   run the server by:
@@ -29,10 +31,12 @@
 
 int findMaxFd(int tcp_socket, int * clients, int * clientsNoName){
   int maxfd = tcp_socket;
-  for (int i =0; i< 5; i++){
+  for (int i =0; i< MAX_CLIENTS; i++){
     if (maxfd < clients[i]){
       maxfd = clients[i];
     }
+  }
+  for (int i =0; i< MAX_CLIENTS_NO_NAME; i++){
     if (maxfd < clientsNoName[i]){
       maxfd = clientsNoName[i];
     }
@@ -43,7 +47,7 @@ int findMaxFd(int tcp_socket, int * clients, int * clientsNoName){
 
 int ClientNameExists(char * name, char * client_names[]){
   int exists = 0;
-  for (int i =0; i<5; i++){
+  for (int i =0; i< MAX_CLIENTS; i++){
     if (strcmp(name, client_names[i]) == 0){
       exists = 1;
     }
@@ -70,19 +74,20 @@ int main(int argc, char** argv)
 
   
   // stores socket descriptors of current clients
-  int clients[5];
-  for (int i =0; i< 5; i++){
+  int clients[MAX_CLIENTS];
+  for (int i =0; i< MAX_CLIENTS; i++){
     clients[i] = 0;
   }
 
-  int clientsNoName[5];
-  for (int i =0; i< 5; i++){
+  int clientsNoName[MAX_CLIENTS_NO_NAME];
+
+  for (int i =0; i< MAX_CLIENTS_NO_NAME; i++){
     clientsNoName[i] = 0;
   }
 
   // stores names of all current clients
-  char ** client_names = malloc(5 * sizeof(char*));
-  for (int i =0; i<5; i++){
+  char ** client_names = malloc(MAX_CLIENTS * sizeof(char*));
+  for (int i =0; i<MAX_CLIENTS; i++){
     client_names[i] = (char*)malloc(1024);
   }
 
@@ -117,7 +122,6 @@ int main(int argc, char** argv)
   int valread = 0;
   char name[1024];
   int k = 0;
-  int clientNum = 0;
 
  
   while ( 1 ){
@@ -126,11 +130,15 @@ int main(int argc, char** argv)
     FD_SET(tcp_socket, &rset);
 
 
-    // adds current active client descriptors
-    for (int i =0; i<5; i++){
+    // adds socket descriptors from
+    // both lists of clients and clientsNoname
+    // to rset
+    for (int i =0; i< MAX_CLIENTS; i++){
       if (clients[i] != 0){
         FD_SET(clients[i], &rset);
       }
+    }
+    for (int i =0; i< MAX_CLIENTS_NO_NAME; i++){
       if (clientsNoName[i] != 0){
         FD_SET(clientsNoName[i], &rset);
       }
@@ -156,7 +164,7 @@ int main(int argc, char** argv)
       k = send(client_sock, askForName, strlen(askForName), 0);
 
       // adds the client to clientsNoName
-      for (int i = 0; i < 5; i++){
+      for (int i = 0; i < MAX_CLIENTS_NO_NAME; i++){
         if( clientsNoName[i] == 0 ){
           clientsNoName[i] = client_sock;
           break;
@@ -169,7 +177,7 @@ int main(int argc, char** argv)
      loops through each socket in clientsNoName
      and check if the client has entered the username.
   */
-  for (int i =0; i<5; i++) {
+  for (int i =0; i<MAX_CLIENTS_NO_NAME; i++) {
 
     socket = clientsNoName[i];
     if (socket != 0){
@@ -202,28 +210,23 @@ int main(int argc, char** argv)
            }
 
           else{
+            char playMessage[1024];
+            sprintf(playMessage, "Let's start playing, %s\n", name);
+            k = send(socket, playMessage, strlen(playMessage), 0);
+            clientsNoName[i] = 0; // remove client from clientsNoName 
 
             // adds the client to the list of active clients
             // if there are less than 5 active clients
-            if (clientNum < 5){
-
-              // sends the start playing message
-              char playMessage[1024];
-              sprintf(playMessage, "Let's start playing, %s\n", name);
-              k = send(socket, playMessage, strlen(playMessage), 0);
-              clientsNoName[i] = 0; // remove client from clientsNoName 
-              
-              for (int i = 0; i < 5; i++){
-                if ( clients[i] == 0 ){
-                clients[i] = socket;
-                strcpy(client_names[i], name);
-                break;
-                }
+            for (int i = 0; i < MAX_CLIENTS; i++){
+              if ( clients[i] == 0 ){
+              clients[i] = socket;
+              strcpy(client_names[i], name);
+              break;
               }
-              clientNum++;
             }
+            
             else{
-              printf("There are 5 clients in the game currently. Please wait.\n");
+              printf("There are 5 clients in the game currently. Please wait\n");
             }
           }
         }
@@ -237,7 +240,7 @@ int main(int argc, char** argv)
     active clients and check if there are
     any incoming word guesses
   */
-  for (int i =0; i<5; i++) {
+  for (int i =0; i< MAX_CLIENTS; i++) {
 
     socket = clients[i];
 
@@ -256,7 +259,6 @@ int main(int argc, char** argv)
           close(socket);
           clients[i] = 0;
           strcpy(client_names[i], "");
-          clientNum--;
           printf("client terminating...\n");
         }
 
@@ -271,7 +273,7 @@ int main(int argc, char** argv)
 
   close(tcp_socket);
 
-  for (int i =0; i<5; i++){
+  for (int i =0; i< MAX_CLIENTS; i++){
     free(client_names[i]);
   }
   free(client_names);
