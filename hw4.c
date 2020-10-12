@@ -392,8 +392,17 @@ int main(int argc, char** argv)
     if (sendToAll == 0) {
       send(socket, message, strlen(message), 0);
      }
-     else if (sendToAll ==1) {
+     else if (sendToAll == 1) {
       sendAll(clients, message);
+    }
+    else if (sendToAll == 2) {
+      for(i = 0 ; i < MAX_CLIENTS; i++){
+        memset(client_names[i], 0, sizeof(char) * 1024);
+        clients[i] = 0;
+      } 
+
+      
+
     }
         }
       }
