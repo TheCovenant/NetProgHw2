@@ -31,7 +31,7 @@
 */
 
 char* sort(char* word);
-void response(char* message, char* user, char** secretWord, char* sortedWord, char* guess, char** wordsList, int wordCount);
+int response(char* message, char* user, char** secretWord, char* guess, char** wordsList, int wordCount);
 
 
 int findMaxFd(int tcp_socket, int * clients, int * clientsNoName){
@@ -348,7 +348,6 @@ int main(int argc, char** argv)
     }
   }
 
-
   /*
     Loop through each socket in list of
     active clients and check if there are
@@ -384,10 +383,12 @@ int main(int argc, char** argv)
     // I just replaced it with a end of string character
     buffer[valread-1] = '\0';
     char message[1024];
-    // for now, secret word is "guess". sort("guess") is for simplicity
-    response(message, client_names[i], &secretWord, sort(secretWord), (char*)buffer, wordsList, wordCount);
-    sendAll(clients, message);
-    // k = send(socket, message, strlen(message), 0);
+    int sendToAll = response(message, client_names[i], &secretWord, (char*)buffer, wordsList, wordCount);
+    if (sendToAll == 0) {
+      send(socket, message, strlen(message), 0);
+    } else {
+      sendAll(clients, message);
+    }
         }
       }
     }
@@ -453,20 +454,18 @@ char* lowercase(char* word) {
   guess: client's guess
   ASSUMES:
     1. words/guesses are lowercase (so that you don't call lowercase each function call)
-    2. <sortedWord> is <word> sorted. (This is so that you don't sort the word each function call
+  RETURNS:
+    0 if message should be sent to one person
+    1 if message should be sent to everyone
  */
-// Things I want to add:
-//   Ensuring there aren't any non-letter characters
-//   Lowercase...? I mean i was planning for the main function to lowercase stuff
-//     so that you don't have to each time response is called
-//   You can also return the error message instead of returning void (and printing the error message)
-void response(char* message, char* user, char** secretWord, char* sortedWord, char* guess, char** wordsList, int wordCount) {
+int response(char* message, char* user, char** secretWord, char* guess, char** wordsList, int wordCount) {
   char* word = *secretWord;
   printf("Comparing guess to word %s\n", word);
   if (strlen(word) != strlen(guess)) {
     sprintf(message, "Invalid guess length. The secret word is %d letter(s).\n", (int)strlen(word));
-    return;
+    return 0;
   }
+  char* sortedWord = sort(word);
   char* sortedGuess = sort(guess);
   int correctPositions = 0;
 
@@ -483,7 +482,7 @@ void response(char* message, char* user, char** secretWord, char* sortedWord, ch
     printf("Now choosing new word\n");
     getSecretWord(wordsList, wordCount, &word);
     printf("For the purpose of debugging, the new word is %s\n", word);
-    return;
+    return 1;
   }
 
   // correctLetters
@@ -502,4 +501,5 @@ void response(char* message, char* user, char** secretWord, char* sortedWord, ch
     }
   }
   sprintf(message, "%s guessed %s: %d letter(s) were correct and %d letter(s) were correctly placed.\n", user, guess, correctLetters, correctPositions);
+  return 1;
 }
