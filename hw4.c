@@ -84,7 +84,6 @@ void getWordCount(char* fileName, int* wordCount){
             *wordCount =  *wordCount + 1; 
 
     fclose(file);
-    free(file);
 }
 
 char** getDictionaryWords(int longestWordLength, int wordCount, char* fileName) {
@@ -114,8 +113,6 @@ char** getDictionaryWords(int longestWordLength, int wordCount, char* fileName) 
     }
 
     fclose(file);
-    if(line)
-        free(line);
 
     
 
