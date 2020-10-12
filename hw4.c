@@ -328,9 +328,20 @@ int main(int argc, char** argv)
            }
 
           else{
-            char playMessage[1024];
-            sprintf(playMessage, "Let's start playing, %s\n", name);
-            k = send(socket, playMessage, strlen(playMessage), 0);
+	    // get # clients with usernames
+	    int numUsers = 0;
+	    int oneAvailableSpot = 0;
+	    for (int i = 0; i < MAX_CLIENTS; i++) {
+	      if (clients[i] != 0) {
+		numUsers += 1;
+	      } else {
+		oneAvailableSpot = 1; // is 1 if user is able to login. 0 otherwise
+	      }
+	    }
+	    numUsers += oneAvailableSpot;
+            char playMessage[1024 + 100]; // max size is actully 1024 + 85 or something...
+            sprintf(playMessage, "Let's start playing, %s\nThere are %d player(s) playing. The secret word is %d letter(s).\n", name,  numUsers, (int)strlen(secretWord));
+	    k = send(socket, playMessage, strlen(playMessage), 0);
             clientsNoName[i] = 0; // remove client from clientsNoName
 
             // adds the client to the list of active clients
