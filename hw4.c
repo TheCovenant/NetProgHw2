@@ -31,7 +31,7 @@
 */
 
 char* sort(char* word);
-void response(char* message, char* user, char* word, char* sortedWord, char* guess, char** wordsList, int wordCount);
+void response(char* message, char* user, char** secretWord, char* sortedWord, char* guess, char** wordsList, int wordCount);
 
 
 int findMaxFd(int tcp_socket, int * clients, int * clientsNoName){
@@ -141,11 +141,11 @@ void freeWordsList(char ***wordsListPointer, int wordCount)
    *wordsListPointer = NULL;
 }
 
-char* getSecretWord(char** wordsList, int wordCount){
+void getSecretWord(char** wordsList, int wordCount, char** word){
+    char* secretWord = *word;
     unsigned int secretWordLocation = rand() % wordCount;
-    char* secretWord = wordsList[secretWordLocation];
+    strcpy(secretWord, wordsList[secretWordLocation]);
     lowerCaseWord(&secretWord);
-    return secretWord;
 }
 
 
@@ -233,7 +233,8 @@ int main(int argc, char** argv)
   printf("we have %d words\n", wordCount);
   char **wordsList = getDictionaryWords(longestWordLength, wordCount, fileName);
 
-  char* secretWord = getSecretWord(wordsList, wordCount);
+  char* secretWord =  (char*)malloc(1024);
+  getSecretWord(wordsList, wordCount, &secretWord);
   
   printf("For the purpose of testing I will say the secret word is %s\n", secretWord);
 
@@ -387,7 +388,7 @@ int main(int argc, char** argv)
     buffer[valread-1] = '\0';
     char message[1024];
     // for now, secret word is "guess". sort("guess") is for simplicity
-    response(message, client_names[i], secretWord, sort(secretWord), (char*)buffer, wordsList, wordCount);
+    response(message, client_names[i], &secretWord, sort(secretWord), (char*)buffer, wordsList, wordCount);
     sendAll(clients, message);
     // k = send(socket, message, strlen(message), 0);
         }
@@ -395,6 +396,9 @@ int main(int argc, char** argv)
     }
   }
 }
+
+freeWordsList(&wordsList, wordCount);
+free(secretWord);
 
   close(tcp_socket);
 
@@ -459,7 +463,9 @@ char* lowercase(char* word) {
 //   Lowercase...? I mean i was planning for the main function to lowercase stuff
 //     so that you don't have to each time response is called
 //   You can also return the error message instead of returning void (and printing the error message)
-void response(char* message, char* user, char* word, char* sortedWord, char* guess, char** wordsList, int wordCount) {
+void response(char* message, char* user, char** secretWord, char* sortedWord, char* guess, char** wordsList, int wordCount) {
+  char* word = *secretWord;
+  printf("Comparing guess to word %s\n", word);
   if (strlen(word) != strlen(guess)) {
     sprintf(message, "Invalid guess length. The secret word is %d letter(s).\n", (int)strlen(word));
     return;
@@ -478,7 +484,7 @@ void response(char* message, char* user, char* word, char* sortedWord, char* gue
   if (correctPositions == strlen(word)) {
     sprintf(message, "%s has correctly guessed the word %s\n", user, word);
     printf("Now choosing new word\n");
-    getSecretWord(wordsList, wordCount);
+    getSecretWord(wordsList, wordCount, &word);
     printf("For the purpose of debugging, the new word is %s\n", word);
     return;
   }
