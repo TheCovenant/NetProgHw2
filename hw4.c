@@ -109,11 +109,9 @@ char** getDictionaryWords(int longestWordLength, int wordCount, char* fileName) 
         currentLine += 1;
         if (currentLine == wordCount)
             break;
-
     }
 
     fclose(file);
-
 
 
     return wordsList;
@@ -121,12 +119,10 @@ char** getDictionaryWords(int longestWordLength, int wordCount, char* fileName) 
 
 char* lowerCaseWord(char** word){
     char* wordToLower = *word;
-
     for (char *ch = wordToLower; *ch; ch++)
     {
         *ch = tolower((unsigned char) *ch);
     }
-
 }
 
 void freeWordsList(char ***wordsListPointer, int wordCount)
@@ -166,7 +162,6 @@ int main(int argc, char** argv)
 
 
   // stores socket descriptors of current clients
-
   for (int i =0; i< MAX_CLIENTS; i++){
     clients[i] = 0;
   }
@@ -232,7 +227,6 @@ int main(int argc, char** argv)
 
   char* secretWord =  (char*)malloc(1024);
   getSecretWord(wordsList, wordCount, &secretWord);
-
   printf("For the purpose of testing I will say the secret word is %s\n", secretWord);
 
 
