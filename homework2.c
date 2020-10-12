@@ -18,22 +18,21 @@
 
 
 #define MAX_CLIENTS 5
-#define MAX_NO_NAME 20
+#define MAX_NO_NAME 5
 
 
 /*
   In your terminal,
   run the server by:
     ./your_program.out [seed] [port] [dictionary_file] [longest_word_length]
-
   to add a new client,
   open a new terminal tab and run:
     nc 127.0.0.1 [port]
 */
-
+int clients[MAX_CLIENTS];
 char* sort(char* word);
-void response(char* message, char* user, char* word, char* sortedWord, char* guess);
-char* lowercase(char* word);
+int response(char* message, char* user, char** secretWord, char* guess, char** wordsList, int wordCount);
+
 
 int findMaxFd(int tcp_socket, int * clients, int * clientsNoName){
   int maxfd = tcp_socket;
@@ -61,6 +60,7 @@ int clientNameExists(char * name, char * client_names[]){
   return exists;
 }
 
+
 void sendAll(int * clients,char * msg){
   int i;
   for(i=0;i< MAX_CLIENTS;i++){
@@ -68,8 +68,85 @@ void sendAll(int * clients,char * msg){
        send(clients[i], msg, strlen(msg), 0);
     }
   }
+}
+
+void getWordCount(char* fileName, int* wordCount){
+    FILE *file;
+    char newLineChar;file = fopen(fileName, "r");
+
+    if (file == NULL){
+        printf("Could not open file %s\n", fileName);
+        return;
+    }
+    *wordCount = 0;
+    for (newLineChar = getc(file); newLineChar != EOF; newLineChar = getc(file))
+        if (newLineChar == '\n') // Increment count if this character is newline
+            *wordCount =  *wordCount + 1;
+
+    fclose(file);
+}
+
+char** getDictionaryWords(int longestWordLength, int wordCount, char* fileName) {
+    char** wordsList = (char**)malloc(wordCount * sizeof(char*));
+    for (int x = 0; x< wordCount; x++)
+        wordsList[x]= (char *)malloc( longestWordLength * sizeof(char));
+
+    char * line = NULL;
+    size_t len = 0;
+    int currentLine = 0;
+    ssize_t read;
+    FILE *file;
+
+    file = fopen(fileName, "r");
+    while ((read = getline(&line, &len, file)) != -1) {
+        // remove new line
+        if ((line)[read - 1] == '\n')
+        {
+            (line)[read - 1] = '\0';
+            --read;
+        }
+        strcpy(wordsList[currentLine], line);
+        currentLine += 1;
+        if (currentLine == wordCount)
+            break;
+
+    }
+
+    fclose(file);
+
+
+
+    return wordsList;
+}
+
+char* lowerCaseWord(char** word){
+    char* wordToLower = *word;
+
+    for (char *ch = wordToLower; *ch; ch++)
+    {
+        *ch = tolower((unsigned char) *ch);
+    }
 
 }
+
+void freeWordsList(char ***wordsListPointer, int wordCount)
+{
+   char** wordsList = *wordsListPointer;
+   for (int x = 0; x < wordCount; x++)
+      free(wordsList[x]);
+   free (wordsList);
+   *wordsListPointer = NULL;
+}
+
+void getSecretWord(char** wordsList, int wordCount, char** word){
+    char* secretWord = *word;
+    unsigned int secretWordLocation = rand() % wordCount;
+    strcpy(secretWord, wordsList[secretWordLocation]);
+    lowerCaseWord(&secretWord);
+}
+
+
+
 int main(int argc, char** argv)
 {
   //instant write and read, no buffer
@@ -89,13 +166,12 @@ int main(int argc, char** argv)
 
 
   // stores socket descriptors of current clients
-  int clients[MAX_CLIENTS];
+
   for (int i =0; i< MAX_CLIENTS; i++){
     clients[i] = 0;
   }
 
   int clientsNoName[MAX_NO_NAME];
-
   for (int i =0; i< MAX_NO_NAME; i++){
     clientsNoName[i] = 0;
   }
@@ -138,6 +214,26 @@ int main(int argc, char** argv)
   int valread = 0;
   char name[1024];
   int k = 0;
+  int clientNum = 0; // current # of clients
+
+  int seedNumber;
+  int longestWordLength;
+  sscanf(argv[1], "%d", &seedNumber);
+  sscanf(argv[4], "%d", &longestWordLength);
+  srand(seedNumber);
+  char* fileName = argv[3];
+  printf("filename is %s \n", fileName);
+
+  int wordCount;
+  getWordCount(fileName, &wordCount);
+
+  printf("we have %d words\n", wordCount);
+  char **wordsList = getDictionaryWords(longestWordLength, wordCount, fileName);
+
+  char* secretWord =  (char*)malloc(1024);
+  getSecretWord(wordsList, wordCount, &secretWord);
+
+  printf("For the purpose of testing I will say the secret word is %s\n", secretWord);
 
 
   while ( 1 ){
@@ -146,9 +242,11 @@ int main(int argc, char** argv)
     FD_SET(tcp_socket, &rset);
 
 
-    // adds socket descriptors from
-    // both lists of clients and clientsNoname
-    // to rset
+    /*
+       adds socket descriptors from
+       both lists of clients and clientsNoname
+       to rset
+     */
     for (int i =0; i< MAX_CLIENTS; i++){
       if (clients[i] != 0){
         FD_SET(clients[i], &rset);
@@ -164,10 +262,12 @@ int main(int argc, char** argv)
     maxfd = findMaxFd(tcp_socket, clients, clientsNoName);
     ready = select(maxfd+1, &rset, NULL, NULL, NULL);
 
-    /* if a new client comes in
+    /*
+       if a new client comes in
        add it to the list of clients without username
     */
-    if (FD_ISSET(tcp_socket, &rset)){
+    if (FD_ISSET(tcp_socket, &rset) && clientNum < 5){
+      clientNum++;
 
       client_sock = accept(tcp_socket, (struct sockaddr *)&client, (socklen_t*)&fromlen);
 
@@ -215,6 +315,7 @@ int main(int argc, char** argv)
         if (valread == 0){
           close( socket );
           clientsNoName[i] = 0;
+          clientNum--;
         }
 
         else{
@@ -227,9 +328,20 @@ int main(int argc, char** argv)
            }
 
           else{
-            char playMessage[1024];
-            sprintf(playMessage, "Let's start playing, %s\n", name);
-            k = send(socket, playMessage, strlen(playMessage), 0);
+	    // get # clients with usernames
+	    int numUsers = 0;
+	    int oneAvailableSpot = 0;
+	    for (int i = 0; i < MAX_CLIENTS; i++) {
+	      if (clients[i] != 0) {
+		numUsers += 1;
+	      } else {
+		oneAvailableSpot = 1; // is 1 if user is able to login. 0 otherwise
+	      }
+	    }
+	    numUsers += oneAvailableSpot;
+            char playMessage[1024 + 100]; // max size is actully 1024 + 85 or something...
+            sprintf(playMessage, "Let's start playing, %s\nThere are %d player(s) playing. The secret word is %d letter(s).\n", name,  numUsers, (int)strlen(secretWord));
+	    k = send(socket, playMessage, strlen(playMessage), 0);
             clientsNoName[i] = 0; // remove client from clientsNoName
 
             // adds the client to the list of active clients
@@ -246,7 +358,6 @@ int main(int argc, char** argv)
       }
     }
   }
-
 
   /*
     Loop through each socket in list of
@@ -270,6 +381,7 @@ int main(int argc, char** argv)
         // and remove the name as well
         if (valread == 0){
           close(socket);
+          clientNum--;
           clients[i] = 0;
           strcpy(client_names[i], "");
           printf("client terminating...\n");
@@ -278,19 +390,25 @@ int main(int argc, char** argv)
         // ** CJ's code goes here **
         // if received word guess from client
         else if (valread > 0){
-	  // This is cause the newline character is read in as well...
-	  // I just replaced it with a end of string character
-	  buffer[valread-1] = '\0';
-	  char message[1024];
-	  // for now, secret word is "guess". sort("guess") is for simplicity
-	  response(message, client_names[i], "guess", sort("guess"), (char*)buffer);
-    sendAll(clients,message);
-	  // k = send(socket, message, strlen(message), 0);
+    // This is cause the newline character is read in as well...
+    // I just replaced it with a end of string character
+    buffer[valread-1] = '\0';
+    char message[1024];
+    int sendToAll = response(message, client_names[i], &secretWord, (char*)buffer, wordsList, wordCount);
+    if (sendToAll == 0) {
+      send(socket, message, strlen(message), 0);
+     }
+     else if (sendToAll ==1) {
+      sendAll(clients, message);
+    }
         }
       }
     }
   }
 }
+
+freeWordsList(&wordsList, wordCount);
+free(secretWord);
 
   close(tcp_socket);
 
@@ -317,7 +435,7 @@ char* sort(char* word) {
     int min = i;
     for (int j = i; j < strlen(word); j++) {
       if (sorted[min] > sorted[j]) {
-	min = j;
+  min = j;
       }
     }
     char temp = sorted[i];
@@ -346,21 +464,20 @@ char* lowercase(char* word) {
   word: word to be guessed
   sortedWord: word to be guessed (sorted)
   guess: client's guess
-
   ASSUMES:
     1. words/guesses are lowercase (so that you don't call lowercase each function call)
-    2. <sortedWord> is <word> sorted. (This is so that you don't sort the word each function call
+  RETURNS:
+    0 if message should be sent to one person
+    1 if message should be sent to everyone
  */
-// Things I want to add:
-//   Ensuring there aren't any non-letter characters
-//   Lowercase...? I mean i was planning for the main function to lowercase stuff
-//     so that you don't have to each time response is called
-//   You can also return the error message instead of returning void (and printing the error message)
-void response(char* message, char* user, char* word, char* sortedWord, char* guess) {
+int response(char* message, char* user, char** secretWord, char* guess, char** wordsList, int wordCount) {
+  char* word = *secretWord;
+  printf("Comparing guess to word %s\n", word);
   if (strlen(word) != strlen(guess)) {
     sprintf(message, "Invalid guess length. The secret word is %d letter(s).\n", (int)strlen(word));
-    return;
+    return 0;
   }
+  char* sortedWord = sort(word);
   char* sortedGuess = sort(guess);
   int correctPositions = 0;
 
@@ -374,7 +491,20 @@ void response(char* message, char* user, char* word, char* sortedWord, char* gue
   // Check for correct guess
   if (correctPositions == strlen(word)) {
     sprintf(message, "%s has correctly guessed the word %s\n", user, word);
-    return;
+    // disconnect the clients
+    sendAll(clients, message);
+    int k;
+    for(k=0;k<5;k++){
+      if (clients[k] !=0){
+        close(clients[k]);
+      }
+
+    }
+    printf("Now choosing new word\n");
+    getSecretWord(wordsList, wordCount, &word);
+    printf("For the purpose of debugging, the new word is %s\n", word);
+    // return 2 if disconnect
+    return 2;
   }
 
   // correctLetters
@@ -393,4 +523,5 @@ void response(char* message, char* user, char* word, char* sortedWord, char* gue
     }
   }
   sprintf(message, "%s guessed %s: %d letter(s) were correct and %d letter(s) were correctly placed.\n", user, guess, correctLetters, correctPositions);
+  return 1;
 }
