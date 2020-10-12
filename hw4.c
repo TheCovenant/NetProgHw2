@@ -348,7 +348,6 @@ int main(int argc, char** argv)
     }
   }
 
-
   /*
     Loop through each socket in list of
     active clients and check if there are
