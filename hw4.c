@@ -29,7 +29,7 @@
   open a new terminal tab and run:
     nc 127.0.0.1 [port]
 */
-
+int clients[MAX_CLIENTS];
 char* sort(char* word);
 int response(char* message, char* user, char** secretWord, char* guess, char** wordsList, int wordCount);
 
@@ -79,9 +79,9 @@ void getWordCount(char* fileName, int* wordCount){
         return;
     }
     *wordCount = 0;
-    for (newLineChar = getc(file); newLineChar != EOF; newLineChar = getc(file)) 
-        if (newLineChar == '\n') // Increment count if this character is newline 
-            *wordCount =  *wordCount + 1; 
+    for (newLineChar = getc(file); newLineChar != EOF; newLineChar = getc(file))
+        if (newLineChar == '\n') // Increment count if this character is newline
+            *wordCount =  *wordCount + 1;
 
     fclose(file);
 }
@@ -100,7 +100,7 @@ char** getDictionaryWords(int longestWordLength, int wordCount, char* fileName) 
     file = fopen(fileName, "r");
     while ((read = getline(&line, &len, file)) != -1) {
         // remove new line
-        if ((line)[read - 1] == '\n') 
+        if ((line)[read - 1] == '\n')
         {
             (line)[read - 1] = '\0';
             --read;
@@ -109,24 +109,20 @@ char** getDictionaryWords(int longestWordLength, int wordCount, char* fileName) 
         currentLine += 1;
         if (currentLine == wordCount)
             break;
-        
     }
 
     fclose(file);
 
-    
 
     return wordsList;
 }
 
 char* lowerCaseWord(char** word){
     char* wordToLower = *word;
-  
     for (char *ch = wordToLower; *ch; ch++)
     {
         *ch = tolower((unsigned char) *ch);
     }
-    
 }
 
 void freeWordsList(char ***wordsListPointer, int wordCount)
@@ -166,7 +162,6 @@ int main(int argc, char** argv)
 
 
   // stores socket descriptors of current clients
-  int clients[MAX_CLIENTS];
   for (int i =0; i< MAX_CLIENTS; i++){
     clients[i] = 0;
   }
@@ -232,7 +227,6 @@ int main(int argc, char** argv)
 
   char* secretWord =  (char*)malloc(1024);
   getSecretWord(wordsList, wordCount, &secretWord);
-  
   printf("For the purpose of testing I will say the secret word is %s\n", secretWord);
 
 
@@ -242,7 +236,7 @@ int main(int argc, char** argv)
     FD_SET(tcp_socket, &rset);
 
 
-    /* 
+    /*
        adds socket descriptors from
        both lists of clients and clientsNoname
        to rset
@@ -262,7 +256,7 @@ int main(int argc, char** argv)
     maxfd = findMaxFd(tcp_socket, clients, clientsNoName);
     ready = select(maxfd+1, &rset, NULL, NULL, NULL);
 
-    /* 
+    /*
        if a new client comes in
        add it to the list of clients without username
     */
@@ -397,8 +391,18 @@ int main(int argc, char** argv)
     int sendToAll = response(message, client_names[i], &secretWord, (char*)buffer, wordsList, wordCount);
     if (sendToAll == 0) {
       send(socket, message, strlen(message), 0);
-    } else {
+     }
+     else if (sendToAll == 1) {
       sendAll(clients, message);
+    }
+    else if (sendToAll == 2) {
+      for(i = 0 ; i < MAX_CLIENTS; i++){
+        memset(client_names[i], 0, sizeof(char) * 1024);
+        clients[i] = 0;
+      } 
+
+      
+
     }
         }
       }
@@ -490,10 +494,20 @@ int response(char* message, char* user, char** secretWord, char* guess, char** w
   // Check for correct guess
   if (correctPositions == strlen(word)) {
     sprintf(message, "%s has correctly guessed the word %s\n", user, word);
+    // disconnect the clients
+    sendAll(clients, message);
+    int k;
+    for(k=0;k<5;k++){
+      if (clients[k] !=0){
+        close(clients[k]);
+      }
+
+    }
     printf("Now choosing new word\n");
     getSecretWord(wordsList, wordCount, &word);
     printf("For the purpose of debugging, the new word is %s\n", word);
-    return 1;
+    // return 2 if disconnect
+    return 2;
   }
 
   // correctLetters
