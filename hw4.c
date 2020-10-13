@@ -29,9 +29,12 @@
   open a new terminal tab and run:
     nc 127.0.0.1 [port]
 */
+int clients[MAX_CLIENTS];
+int clientNum;
+
 
 char* sort(char* word);
-void response(char* message, char* user, char** secretWord, char* sortedWord, char* guess, char** wordsList, int wordCount);
+int response(char* message, char* user, char** secretWord, char* guess, char** wordsList, int wordCount);
 
 
 int findMaxFd(int tcp_socket, int * clients, int * clientsNoName){
@@ -50,10 +53,19 @@ int findMaxFd(int tcp_socket, int * clients, int * clientsNoName){
 }
 
 
+void lowerCaseWord(char** word){
+    char* wordToLower = *word;
+    for (char *ch = wordToLower; *ch; ch++)
+    {
+        *ch = tolower((unsigned char) *ch);
+    }
+}
+
+
 int clientNameExists(char * name, char * client_names[]){
   int exists = 0;
   for (int i =0; i< MAX_CLIENTS; i++){
-    if (strcmp(name, client_names[i]) == 0){
+    if (strcasecmp(name, client_names[i]) == 0){
       exists = 1;
     }
   }
@@ -79,9 +91,9 @@ void getWordCount(char* fileName, int* wordCount){
         return;
     }
     *wordCount = 0;
-    for (newLineChar = getc(file); newLineChar != EOF; newLineChar = getc(file)) 
-        if (newLineChar == '\n') // Increment count if this character is newline 
-            *wordCount =  *wordCount + 1; 
+    for (newLineChar = getc(file); newLineChar != EOF; newLineChar = getc(file))
+        if (newLineChar == '\n') // Increment count if this character is newline
+            *wordCount =  *wordCount + 1;
 
     fclose(file);
 }
@@ -100,7 +112,7 @@ char** getDictionaryWords(int longestWordLength, int wordCount, char* fileName) 
     file = fopen(fileName, "r");
     while ((read = getline(&line, &len, file)) != -1) {
         // remove new line
-        if ((line)[read - 1] == '\n') 
+        if ((line)[read - 1] == '\n')
         {
             (line)[read - 1] = '\0';
             --read;
@@ -109,25 +121,14 @@ char** getDictionaryWords(int longestWordLength, int wordCount, char* fileName) 
         currentLine += 1;
         if (currentLine == wordCount)
             break;
-        
     }
 
     fclose(file);
 
-    
 
     return wordsList;
 }
 
-char* lowerCaseWord(char** word){
-    char* wordToLower = *word;
-  
-    for (char *ch = wordToLower; *ch; ch++)
-    {
-        *ch = tolower((unsigned char) *ch);
-    }
-    
-}
 
 void freeWordsList(char ***wordsListPointer, int wordCount)
 {
@@ -166,7 +167,6 @@ int main(int argc, char** argv)
 
 
   // stores socket descriptors of current clients
-  int clients[MAX_CLIENTS];
   for (int i =0; i< MAX_CLIENTS; i++){
     clients[i] = 0;
   }
@@ -214,7 +214,8 @@ int main(int argc, char** argv)
   int valread = 0;
   char name[1024];
   int k = 0;
-  int clientNum = 0; // current # of clients
+  clientNum = 0;
+ // current # of clients
 
   int seedNumber;
   int longestWordLength;
@@ -231,8 +232,8 @@ int main(int argc, char** argv)
   char **wordsList = getDictionaryWords(longestWordLength, wordCount, fileName);
 
   char* secretWord =  (char*)malloc(1024);
+
   getSecretWord(wordsList, wordCount, &secretWord);
-  
   printf("For the purpose of testing I will say the secret word is %s\n", secretWord);
 
 
@@ -242,7 +243,7 @@ int main(int argc, char** argv)
     FD_SET(tcp_socket, &rset);
 
 
-    /* 
+    /*
        adds socket descriptors from
        both lists of clients and clientsNoname
        to rset
@@ -262,7 +263,7 @@ int main(int argc, char** argv)
     maxfd = findMaxFd(tcp_socket, clients, clientsNoName);
     ready = select(maxfd+1, &rset, NULL, NULL, NULL);
 
-    /* 
+    /*
        if a new client comes in
        add it to the list of clients without username
     */
@@ -328,9 +329,20 @@ int main(int argc, char** argv)
            }
 
           else{
-            char playMessage[1024];
-            sprintf(playMessage, "Let's start playing, %s\n", name);
-            k = send(socket, playMessage, strlen(playMessage), 0);
+      // get # clients with usernames
+      int numUsers = 0;
+      int oneAvailableSpot = 0;
+      for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (clients[i] != 0) {
+    numUsers += 1;
+        } else {
+    oneAvailableSpot = 1; // is 1 if user is able to login. 0 otherwise
+        }
+      }
+      numUsers += oneAvailableSpot;
+            char playMessage[1024 + 100]; // max size is actully 1024 + 85 or something...
+            sprintf(playMessage, "Let's start playing, %s\nThere are %d player(s) playing. The secret word is %d letter(s).\n", name,  numUsers, (int)strlen(secretWord));
+      k = send(socket, playMessage, strlen(playMessage), 0);
             clientsNoName[i] = 0; // remove client from clientsNoName
 
             // adds the client to the list of active clients
@@ -347,7 +359,6 @@ int main(int argc, char** argv)
       }
     }
   }
-
 
   /*
     Loop through each socket in list of
@@ -384,10 +395,22 @@ int main(int argc, char** argv)
     // I just replaced it with a end of string character
     buffer[valread-1] = '\0';
     char message[1024];
-    // for now, secret word is "guess". sort("guess") is for simplicity
-    response(message, client_names[i], &secretWord, sort(secretWord), (char*)buffer, wordsList, wordCount);
-    sendAll(clients, message);
-    // k = send(socket, message, strlen(message), 0);
+    int sendToAll = response(message, client_names[i], &secretWord, (char*)buffer, wordsList, wordCount);
+    if (sendToAll == 0) {
+      send(socket, message, strlen(message), 0);
+     }
+     else if (sendToAll == 1) {
+      sendAll(clients, message);
+    }
+    else if (sendToAll == 2) {
+      for(i = 0 ; i < MAX_CLIENTS; i++){
+        memset(client_names[i], 0, sizeof(char) * 1024);
+        clients[i] = 0;
+      } 
+
+      
+
+    }
         }
       }
     }
@@ -396,6 +419,7 @@ int main(int argc, char** argv)
 
 freeWordsList(&wordsList, wordCount);
 free(secretWord);
+
 
   close(tcp_socket);
 
@@ -453,20 +477,18 @@ char* lowercase(char* word) {
   guess: client's guess
   ASSUMES:
     1. words/guesses are lowercase (so that you don't call lowercase each function call)
-    2. <sortedWord> is <word> sorted. (This is so that you don't sort the word each function call
+  RETURNS:
+    0 if message should be sent to one person
+    1 if message should be sent to everyone
  */
-// Things I want to add:
-//   Ensuring there aren't any non-letter characters
-//   Lowercase...? I mean i was planning for the main function to lowercase stuff
-//     so that you don't have to each time response is called
-//   You can also return the error message instead of returning void (and printing the error message)
-void response(char* message, char* user, char** secretWord, char* sortedWord, char* guess, char** wordsList, int wordCount) {
+int response(char* message, char* user, char** secretWord, char* guess, char** wordsList, int wordCount) {
   char* word = *secretWord;
   printf("Comparing guess to word %s\n", word);
   if (strlen(word) != strlen(guess)) {
     sprintf(message, "Invalid guess length. The secret word is %d letter(s).\n", (int)strlen(word));
-    return;
+    return 0;
   }
+  char* sortedWord = sort(word);
   char* sortedGuess = sort(guess);
   int correctPositions = 0;
 
@@ -480,10 +502,21 @@ void response(char* message, char* user, char** secretWord, char* sortedWord, ch
   // Check for correct guess
   if (correctPositions == strlen(word)) {
     sprintf(message, "%s has correctly guessed the word %s\n", user, word);
+    clientNum = 0;
+    // disconnect the clients
+    sendAll(clients, message);
+    int k;
+    for(k=0;k<5;k++){
+      if (clients[k] !=0){
+        close(clients[k]);
+      }
+
+    }
     printf("Now choosing new word\n");
     getSecretWord(wordsList, wordCount, &word);
     printf("For the purpose of debugging, the new word is %s\n", word);
-    return;
+    // return 2 if disconnect
+    return 2;
   }
 
   // correctLetters
@@ -502,4 +535,5 @@ void response(char* message, char* user, char** secretWord, char* sortedWord, ch
     }
   }
   sprintf(message, "%s guessed %s: %d letter(s) were correct and %d letter(s) were correctly placed.\n", user, guess, correctLetters, correctPositions);
+  return 1;
 }
